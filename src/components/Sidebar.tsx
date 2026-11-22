@@ -1,0 +1,147 @@
+import { Film, FolderPlus, Layers, Scissors, Sparkles } from "lucide-react";
+import { StreamSource } from "../types/clip";
+import { formatTimecode } from "../utils/videoEngine";
+
+export type WorkspaceTab = "studio" | "highlights" | "exports";
+
+interface SidebarProps {
+  activeTab: WorkspaceTab;
+  onSelectTab: (tab: WorkspaceTab) => void;
+  streams: StreamSource[];
+  activeStreamId: string;
+  onSelectStream: (id: string) => void;
+  onOpenIngest: () => void;
+  totalHighlightsCount: number;
+  exportsCount: number;
+}
+
+export function Sidebar({
+  activeTab,
+  onSelectTab,
+  streams,
+  activeStreamId,
+  onSelectStream,
+  onOpenIngest,
+  totalHighlightsCount,
+  exportsCount,
+}: SidebarProps) {
+  return (
+    <aside className="w-full lg:w-[252px] shrink-0 bg-[#11141A] border-b lg:border-b-0 lg:border-r border-white/[0.08] flex flex-col justify-between">
+      <div>
+        <div className="h-14 px-5 flex items-center border-b border-white/[0.08]">
+          <span className="font-display text-lg font-bold tracking-tight text-[#F3F5F8] whitespace-nowrap shrink-0">
+            ClipDeck
+          </span>
+        </div>
+
+        <nav className="p-3 space-y-1" aria-label="Workspace navigation">
+          <button
+            type="button"
+            onClick={() => onSelectTab("studio")}
+            className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap shrink-0 ${
+              activeTab === "studio"
+                ? "bg-[#1B2029] text-white"
+                : "text-zinc-400 hover:text-zinc-100 hover:bg-white/[0.04]"
+            }`}
+          >
+            <span className="flex items-center gap-2.5">
+              <Scissors className="w-4 h-4 text-[#F43F5E]" />
+              <span>Clip Studio</span>
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => onSelectTab("highlights")}
+            className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap shrink-0 ${
+              activeTab === "highlights"
+                ? "bg-[#1B2029] text-white"
+                : "text-zinc-400 hover:text-zinc-100 hover:bg-white/[0.04]"
+            }`}
+          >
+            <span className="flex items-center gap-2.5">
+              <Sparkles className="w-4 h-4 text-zinc-400" />
+              <span>Detected Highlights</span>
+            </span>
+            <span className="font-mono text-xs tabular-nums text-zinc-400">
+              {totalHighlightsCount}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => onSelectTab("exports")}
+            className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap shrink-0 ${
+              activeTab === "exports"
+                ? "bg-[#1B2029] text-white"
+                : "text-zinc-400 hover:text-zinc-100 hover:bg-white/[0.04]"
+            }`}
+          >
+            <span className="flex items-center gap-2.5">
+              <Layers className="w-4 h-4 text-zinc-400" />
+              <span>Export Queue</span>
+            </span>
+            <span className="font-mono text-xs tabular-nums text-zinc-400">
+              {exportsCount}
+            </span>
+          </button>
+        </nav>
+
+        <div className="px-4 pt-4 pb-2 flex items-center justify-between border-t border-white/[0.06]">
+          <span className="text-xs font-medium text-zinc-400">Stream Sources</span>
+          <button
+            type="button"
+            onClick={onOpenIngest}
+            className="inline-flex items-center gap-1 text-xs font-medium text-[#F43F5E] hover:text-[#FB7185] transition-colors whitespace-nowrap shrink-0"
+          >
+            <FolderPlus className="w-3.5 h-3.5" />
+            <span>Add</span>
+          </button>
+        </div>
+
+        <div className="px-3 pb-4 space-y-1 max-h-[300px] lg:max-h-[420px] overflow-y-auto">
+          {streams.map((stream) => {
+            const isActive = stream.id === activeStreamId;
+            return (
+              <button
+                key={stream.id}
+                type="button"
+                onClick={() => {
+                  onSelectStream(stream.id);
+                  onSelectTab("studio");
+                }}
+                className={`w-full text-left px-3 py-2.5 rounded-lg transition-colors border ${
+                  isActive
+                    ? "bg-[#161A22] border-white/[0.12] text-zinc-100"
+                    : "border-transparent text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.03]"
+                }`}
+              >
+                <div className="flex items-center gap-2 text-xs text-zinc-400 mb-0.5">
+                  <span className="capitalize">
+                    {stream.platform === "local" ? "Uploaded VOD" : stream.platform}
+                  </span>
+                  <span aria-hidden="true">·</span>
+                  <span className="font-mono tabular-nums">
+                    {formatTimecode(stream.durationSec)}
+                  </span>
+                </div>
+                <p className="text-xs font-medium text-zinc-100 truncate">{stream.title}</p>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="hidden lg:block p-4 border-t border-white/[0.08]">
+        <button
+          type="button"
+          onClick={onOpenIngest}
+          className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-[#181C24] hover:bg-[#1F242F] border border-white/[0.1] text-xs font-medium text-zinc-100 transition-colors whitespace-nowrap shrink-0"
+        >
+          <Film className="w-3.5 h-3.5 text-zinc-300" />
+          <span>Import Stream or VOD</span>
+        </button>
+      </div>
+    </aside>
+  );
+}

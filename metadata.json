@@ -1,0 +1,6 @@
+{
+  "name": "ClipDeck",
+  "description": "Clip short vertical videos from Twitch and YouTube streams with automatic highlight detection.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
