@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { collection, onSnapshot, orderBy, query, where } from "firebase/firestore";
+import { collection, onSnapshot, query, where } from "firebase/firestore";
 import { Check, Loader2 } from "lucide-react";
 import { PlanTier, useFirebase } from "../context/FirebaseContext";
 import { db, handleFirestoreError, OperationType } from "../firebase";
@@ -9,6 +9,7 @@ interface UserUpgradeRequest {
   requestedPlan: "pro" | "agency";
   status: "pending" | "approved" | "rejected";
   note: string;
+  createdAtMs: number;
 }
 
 export function PricingView() {
@@ -33,20 +34,24 @@ export function PricingView() {
     }
     const q = query(
       collection(db, "upgradeRequests"),
-      where("userId", "==", firebaseUser.uid),
-      orderBy("createdAt", "desc")
+      where("userId", "==", firebaseUser.uid)
     );
     const unsub = onSnapshot(
       q,
       (snap) => {
-        setRequests(
-          snap.docs.map((d) => ({
+        const items = snap.docs.map((d) => {
+          const data = d.data();
+          const ts = data.createdAt as { toMillis?: () => number } | undefined;
+          return {
             id: d.id,
-            requestedPlan: d.data().requestedPlan as "pro" | "agency",
-            status: d.data().status as "pending" | "approved" | "rejected",
-            note: String(d.data().note || ""),
-          }))
-        );
+            requestedPlan: data.requestedPlan as "pro" | "agency",
+            status: data.status as "pending" | "approved" | "rejected",
+            note: String(data.note || ""),
+            createdAtMs: ts?.toMillis ? ts.toMillis() : 0,
+          };
+        });
+        items.sort((a, b) => b.createdAtMs - a.createdAtMs);
+        setRequests(items);
       },
       (err) => {
         handleFirestoreError(err, OperationType.LIST, "upgradeRequests");
