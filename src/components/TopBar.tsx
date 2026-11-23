@@ -15,6 +15,8 @@ const TAB_TITLES: Record<WorkspaceTab, string> = {
   studio: "Clip Studio",
   highlights: "Detected Highlights",
   exports: "Export Queue",
+  pricing: "Pricing & Plans",
+  admin: "Admin Console",
 };
 
 export function TopBar({

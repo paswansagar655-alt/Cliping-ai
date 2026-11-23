@@ -1,14 +1,19 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AlertCircle, CheckCircle2, Link2, Loader2, Scissors, Sparkles, X } from "lucide-react";
+import { AdBannerSlot } from "./components/AdBannerSlot";
+import { AdminConsoleView } from "./components/AdminConsoleView";
 import { ExportQueueView } from "./components/ExportQueueView";
 import { HighlightsQueueView } from "./components/HighlightsQueueView";
 import { OfflineIndicator } from "./components/OfflineIndicator";
+import { PolicyModal, PolicyTopic } from "./components/PolicyModal";
+import { PricingView } from "./components/PricingView";
 import { Sidebar, WorkspaceTab } from "./components/Sidebar";
 import { SourceMonitor } from "./components/SourceMonitor";
 import { StreamIngestModal } from "./components/StreamIngestModal";
 import { TimelineEditor } from "./components/TimelineEditor";
 import { TopBar } from "./components/TopBar";
 import { VerticalPreview } from "./components/VerticalPreview";
+import { useFirebase } from "./context/FirebaseContext";
 import { SAMPLE_STREAMS } from "./data/sampleStreams";
 import {
   CaptionStyle,
@@ -85,10 +90,13 @@ export default function App() {
 
   const [exports, setExports] = useState<ExportedClip[]>([]);
   const [ingestOpen, setIngestOpen] = useState(false);
+  const [policyTopic, setPolicyTopic] = useState<PolicyTopic | null>(null);
   const [feedback, setFeedback] = useState<{
     type: "error" | "success";
     message: string;
   } | null>(null);
+
+  const { canPerformAction, recordUsage, authError } = useFirebase();
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const exportAbortRef = useRef<AbortController | null>(null);
@@ -180,6 +188,16 @@ export default function App() {
 
   const runHighlightDetection = useCallback(
     async (targetStream: StreamSource) => {
+      const check = canPerformAction("scan");
+      if (!check.allowed) {
+        setFeedback({
+          type: "error",
+          message: check.reason || "Monthly scan limit reached.",
+        });
+        setActiveTab("pricing");
+        return;
+      }
+
       setIsDetecting(true);
       setFeedback(null);
       try {
@@ -225,6 +243,8 @@ export default function App() {
           type: "success",
           message: `Detected ${detected.length} highlight clips for "${targetStream.title}".`,
         });
+
+        await recordUsage("highlight_scan", targetStream.title, targetStream.platform);
       } catch (err) {
         setFeedback({
           type: "error",
@@ -234,7 +254,7 @@ export default function App() {
         setIsDetecting(false);
       }
     },
-    [activeStreamId, targetDurationPref, targetPlatform]
+    [activeStreamId, canPerformAction, recordUsage, targetDurationPref, targetPlatform]
   );
 
   const handleQuickUrlSubmit = async (e: React.FormEvent) => {
@@ -398,6 +418,7 @@ export default function App() {
         type: "success",
         message: `Updated hook for ${targetPlatform}.`,
       });
+      await recordUsage("hook_rewrite", activeStream.title, activeStream.platform);
     } catch (err) {
       setFeedback({
         type: "error",
@@ -410,6 +431,16 @@ export default function App() {
 
   const handleExportClip = async (clipToExport: HighlightClip = draftClip) => {
     if (isExporting) return;
+    const check = canPerformAction("export");
+    if (!check.allowed) {
+      setFeedback({
+        type: "error",
+        message: check.reason || "Monthly export limit reached.",
+      });
+      setActiveTab("pricing");
+      return;
+    }
+
     setIsExporting(true);
     setExportProgress(5);
     setFeedback(null);
@@ -453,6 +484,8 @@ export default function App() {
           2
         )} MB WebM).`,
       });
+
+      await recordUsage("short_export", clipToExport.title, activeStream.platform);
     } catch (err) {
       if ((err as Error).message !== "Export cancelled.") {
         setFeedback({
@@ -518,31 +551,33 @@ export default function App() {
             </div>
           )}
 
-          {feedback && (
+          {(feedback || authError) && (
             <div
               role="status"
               className={`rounded-xl px-4 py-3 border flex items-center justify-between gap-3 text-xs ${
-                feedback.type === "error"
+                authError || feedback?.type === "error"
                   ? "bg-red-500/10 border-red-500/30 text-red-200"
                   : "bg-emerald-500/10 border-emerald-500/30 text-emerald-200"
               }`}
             >
               <span className="flex items-center gap-2">
-                {feedback.type === "error" ? (
+                {authError || feedback?.type === "error" ? (
                   <AlertCircle className="w-4 h-4 shrink-0" />
                 ) : (
                   <CheckCircle2 className="w-4 h-4 shrink-0" />
                 )}
-                <span>{feedback.message}</span>
+                <span>{authError || feedback?.message}</span>
               </span>
-              <button
-                type="button"
-                onClick={() => setFeedback(null)}
-                aria-label="Dismiss notification"
-                className="p-1 rounded hover:bg-white/[0.08]"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
+              {feedback && (
+                <button
+                  type="button"
+                  onClick={() => setFeedback(null)}
+                  aria-label="Dismiss notification"
+                  className="p-1 rounded hover:bg-white/[0.08]"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
             </div>
           )}
 
@@ -750,6 +785,39 @@ export default function App() {
               onBackToStudio={() => setActiveTab("studio")}
             />
           )}
+
+          {activeTab === "pricing" && <PricingView />}
+
+          {activeTab === "admin" && <AdminConsoleView />}
+
+          <AdBannerSlot onOpenPricing={() => setActiveTab("pricing")} />
+
+          <footer className="pt-4 pb-2 border-t border-white/[0.06] flex flex-wrap items-center justify-between gap-4 text-xs text-zinc-500">
+            <span>ClipDeck · Twitch &amp; YouTube Stream Clipper</span>
+            <div className="flex items-center gap-5">
+              <button
+                type="button"
+                onClick={() => setPolicyTopic("guide")}
+                className="hover:text-zinc-200 transition-colors"
+              >
+                How It Works
+              </button>
+              <button
+                type="button"
+                onClick={() => setPolicyTopic("privacy")}
+                className="hover:text-zinc-200 transition-colors"
+              >
+                Privacy Policy
+              </button>
+              <button
+                type="button"
+                onClick={() => setPolicyTopic("terms")}
+                className="hover:text-zinc-200 transition-colors"
+              >
+                Terms of Service
+              </button>
+            </div>
+          </footer>
         </main>
       </div>
 
@@ -758,6 +826,8 @@ export default function App() {
         onClose={() => setIngestOpen(false)}
         onAddStream={handleAddStreamFromModal}
       />
+
+      <PolicyModal topic={policyTopic} onClose={() => setPolicyTopic(null)} />
 
       <OfflineIndicator />
     </div>

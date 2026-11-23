@@ -1,9 +1,20 @@
-import { Film, FolderPlus, Layers, Scissors, Sparkles } from "lucide-react";
+import {
+  CreditCard,
+  Film,
+  FolderPlus,
+  Layers,
+  LogIn,
+  LogOut,
+  Scissors,
+  Shield,
+  Sparkles,
+} from "lucide-react";
+import { useFirebase } from "../context/FirebaseContext";
 import { StreamSource } from "../types/clip";
 import { formatTimecode } from "../utils/videoEngine";
 import { PWAInstallButton } from "./PWAInstallButton";
 
-export type WorkspaceTab = "studio" | "highlights" | "exports";
+export type WorkspaceTab = "studio" | "highlights" | "exports" | "pricing" | "admin";
 
 interface SidebarProps {
   activeTab: WorkspaceTab;
@@ -26,6 +37,8 @@ export function Sidebar({
   totalHighlightsCount,
   exportsCount,
 }: SidebarProps) {
+  const { firebaseUser, userProfile, isAdmin, signInWithGoogle, signOutUser } = useFirebase();
+
   return (
     <aside className="w-full lg:w-[252px] shrink-0 bg-[#11141A] border-b lg:border-b-0 lg:border-r border-white/[0.08] flex flex-col justify-between">
       <div>
@@ -33,8 +46,26 @@ export function Sidebar({
           <span className="font-display text-lg font-bold tracking-tight text-[#F3F5F8] whitespace-nowrap shrink-0">
             ClipDeck
           </span>
-          <div className="lg:hidden">
+          <div className="flex items-center gap-2 lg:hidden">
             <PWAInstallButton compact />
+            {firebaseUser ? (
+              <button
+                type="button"
+                onClick={signOutUser}
+                className="px-2.5 py-1.5 rounded-lg bg-[#181C24] border border-white/[0.1] text-xs font-medium text-zinc-200 whitespace-nowrap shrink-0"
+              >
+                Sign Out
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={signInWithGoogle}
+                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-[#181C24] border border-white/[0.12] text-xs font-medium text-zinc-100 whitespace-nowrap shrink-0"
+              >
+                <LogIn className="w-3.5 h-3.5 text-[#F43F5E]" />
+                <span>Sign In</span>
+              </button>
+            )}
           </div>
         </div>
 
@@ -89,6 +120,38 @@ export function Sidebar({
               {exportsCount}
             </span>
           </button>
+
+          <button
+            type="button"
+            onClick={() => onSelectTab("pricing")}
+            className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap shrink-0 ${
+              activeTab === "pricing"
+                ? "bg-[#1B2029] text-white"
+                : "text-zinc-400 hover:text-zinc-100 hover:bg-white/[0.04]"
+            }`}
+          >
+            <span className="flex items-center gap-2.5">
+              <CreditCard className="w-4 h-4 text-zinc-400" />
+              <span>Pricing &amp; Plans</span>
+            </span>
+          </button>
+
+          {isAdmin && (
+            <button
+              type="button"
+              onClick={() => onSelectTab("admin")}
+              className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap shrink-0 ${
+                activeTab === "admin"
+                  ? "bg-[#1B2029] text-white"
+                  : "text-zinc-400 hover:text-zinc-100 hover:bg-white/[0.04]"
+              }`}
+            >
+              <span className="flex items-center gap-2.5">
+                <Shield className="w-4 h-4 text-[#F43F5E]" />
+                <span>Admin Console</span>
+              </span>
+            </button>
+          )}
         </nav>
 
         <div className="px-4 pt-4 pb-2 flex items-center justify-between border-t border-white/[0.06]">
@@ -103,7 +166,7 @@ export function Sidebar({
           </button>
         </div>
 
-        <div className="px-3 pb-4 space-y-1 max-h-[300px] lg:max-h-[420px] overflow-y-auto">
+        <div className="px-3 pb-4 space-y-1 max-h-[240px] lg:max-h-[340px] overflow-y-auto">
           {streams.map((stream) => {
             const isActive = stream.id === activeStreamId;
             return (
@@ -136,8 +199,9 @@ export function Sidebar({
         </div>
       </div>
 
-      <div className="hidden lg:block p-4 border-t border-white/[0.08] space-y-2.5">
+      <div className="hidden lg:block p-4 border-t border-white/[0.08] space-y-3">
         <PWAInstallButton />
+
         <button
           type="button"
           onClick={onOpenIngest}
@@ -146,6 +210,40 @@ export function Sidebar({
           <Film className="w-3.5 h-3.5 text-zinc-300" />
           <span>Import Stream or VOD</span>
         </button>
+
+        {firebaseUser ? (
+          <div className="pt-2 border-t border-white/[0.08] space-y-2">
+            <div className="min-w-0">
+              <p className="text-xs font-medium text-zinc-100 truncate">
+                {userProfile?.displayName || firebaseUser.displayName || "Creator"}
+              </p>
+              <p className="text-[11px] text-zinc-400 truncate">
+                {isAdmin
+                  ? "Admin"
+                  : `${(userProfile?.planTier ?? "free").toUpperCase()} · ${
+                      userProfile?.scansUsed ?? 0
+                    }/${userProfile?.monthlyScanLimit ?? 5} scans`}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={signOutUser}
+              className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-[#0B0D11] hover:bg-white/[0.05] border border-white/[0.08] text-xs text-zinc-300 transition-colors whitespace-nowrap shrink-0"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              <span>Sign Out</span>
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={signInWithGoogle}
+            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-[#0B0D11] hover:bg-[#181C24] border border-white/[0.12] text-xs font-medium text-zinc-100 transition-colors whitespace-nowrap shrink-0"
+          >
+            <LogIn className="w-3.5 h-3.5 text-[#F43F5E]" />
+            <span>Sign In with Google</span>
+          </button>
+        )}
       </div>
     </aside>
   );

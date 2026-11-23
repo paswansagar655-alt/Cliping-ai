@@ -1,0 +1,224 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Authenticated user account, subscription tier, and monthly scan/export quota counters.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "maxLength": 160
+        },
+        "displayName": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "planTier": {
+          "type": "string",
+          "enum": ["free", "pro", "agency"]
+        },
+        "scansUsed": {
+          "type": "integer"
+        },
+        "exportsUsed": {
+          "type": "integer"
+        },
+        "monthlyScanLimit": {
+          "type": "integer"
+        },
+        "monthlyExportLimit": {
+          "type": "integer"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "uid",
+        "email",
+        "displayName",
+        "planTier",
+        "scansUsed",
+        "exportsUsed",
+        "monthlyScanLimit",
+        "monthlyExportLimit",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "AdminRecord": {
+      "title": "AdminRecord",
+      "description": "Admin role grant document keyed by Firebase Auth UID.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "maxLength": 160
+        },
+        "grantedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["uid", "email", "grantedAt"]
+    },
+    "MonetizationConfig": {
+      "title": "MonetizationConfig",
+      "description": "Platform pricing, free-tier quotas, and Google AdSense configuration managed by Admin.",
+      "type": "object",
+      "properties": {
+        "adsEnabled": {
+          "type": "boolean"
+        },
+        "adsenseClientId": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "adsenseSlotId": {
+          "type": "string",
+          "maxLength": 64
+        },
+        "proMonthlyPrice": {
+          "type": "integer"
+        },
+        "agencyMonthlyPrice": {
+          "type": "integer"
+        },
+        "freeMonthlyScanLimit": {
+          "type": "integer"
+        },
+        "freeMonthlyExportLimit": {
+          "type": "integer"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "adsEnabled",
+        "adsenseClientId",
+        "adsenseSlotId",
+        "proMonthlyPrice",
+        "agencyMonthlyPrice",
+        "freeMonthlyScanLimit",
+        "freeMonthlyExportLimit",
+        "updatedAt"
+      ]
+    },
+    "UpgradeRequest": {
+      "title": "UpgradeRequest",
+      "description": "User request to upgrade to a paid plan tier.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "userEmail": {
+          "type": "string",
+          "format": "email",
+          "maxLength": 160
+        },
+        "requestedPlan": {
+          "type": "string",
+          "enum": ["pro", "agency"]
+        },
+        "status": {
+          "type": "string",
+          "enum": ["pending", "approved", "rejected"]
+        },
+        "note": {
+          "type": "string",
+          "maxLength": 300
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "userId",
+        "userEmail",
+        "requestedPlan",
+        "status",
+        "note",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "UsageLog": {
+      "title": "UsageLog",
+      "description": "Audit log of AI highlight scans, hook rewrites, and clip exports.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "actionType": {
+          "type": "string",
+          "enum": ["highlight_scan", "hook_rewrite", "short_export"]
+        },
+        "streamTitle": {
+          "type": "string",
+          "maxLength": 180
+        },
+        "platform": {
+          "type": "string",
+          "enum": ["twitch", "youtube", "local"]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["userId", "actionType", "streamTitle", "platform", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Private user profiles with plan tier and monthly quota usage."
+    },
+    "/admins/{adminUid}": {
+      "schema": { "$ref": "#/entities/AdminRecord" },
+      "description": "Additional admin UID registry managed by the bootstrapped admin."
+    },
+    "/appConfig/{configId}": {
+      "schema": { "$ref": "#/entities/MonetizationConfig" },
+      "description": "Global pricing, free-tier quotas, and AdSense settings."
+    },
+    "/upgradeRequests/{requestId}": {
+      "schema": { "$ref": "#/entities/UpgradeRequest" },
+      "description": "Plan upgrade requests submitted by users for admin approval."
+    },
+    "/usageLogs/{logId}": {
+      "schema": { "$ref": "#/entities/UsageLog" },
+      "description": "Per-user AI scan and export activity log."
+    }
+  }
+}

@@ -1,0 +1,230 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global default-deny safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Shared helpers
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isBootstrappedAdmin() {
+      return isVerifiedUser() && request.auth.token.email == 'paswansagar655@gmail.com';
+    }
+
+    function isAdmin() {
+      return isBootstrappedAdmin() || (
+        isVerifiedUser() &&
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    function isValidUserProfile(data) {
+      return data.keys().hasAll([
+          'uid', 'email', 'displayName', 'planTier',
+          'scansUsed', 'exportsUsed', 'monthlyScanLimit', 'monthlyExportLimit',
+          'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'uid', 'email', 'displayName', 'planTier',
+          'scansUsed', 'exportsUsed', 'monthlyScanLimit', 'monthlyExportLimit',
+          'createdAt', 'updatedAt'
+        ])
+        && isValidId(data.uid)
+        && data.email is string && data.email.size() >= 3 && data.email.size() <= 160
+        && data.displayName is string && data.displayName.size() <= 100
+        && data.planTier in ['free', 'pro', 'agency']
+        && data.scansUsed is int && data.scansUsed >= 0 && data.scansUsed <= 1000000
+        && data.exportsUsed is int && data.exportsUsed >= 0 && data.exportsUsed <= 1000000
+        && data.monthlyScanLimit is int && data.monthlyScanLimit >= 1 && data.monthlyScanLimit <= 100000
+        && data.monthlyExportLimit is int && data.monthlyExportLimit >= 1 && data.monthlyExportLimit <= 100000
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidAdminRecord(data) {
+      return data.keys().hasAll(['uid', 'email', 'grantedAt'])
+        && data.keys().hasOnly(['uid', 'email', 'grantedAt'])
+        && isValidId(data.uid)
+        && data.email is string && data.email.size() >= 3 && data.email.size() <= 160
+        && data.grantedAt is timestamp;
+    }
+
+    function isValidMonetizationConfig(data) {
+      return data.keys().hasAll([
+          'adsEnabled', 'adsenseClientId', 'adsenseSlotId',
+          'proMonthlyPrice', 'agencyMonthlyPrice',
+          'freeMonthlyScanLimit', 'freeMonthlyExportLimit', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'adsEnabled', 'adsenseClientId', 'adsenseSlotId',
+          'proMonthlyPrice', 'agencyMonthlyPrice',
+          'freeMonthlyScanLimit', 'freeMonthlyExportLimit', 'updatedAt'
+        ])
+        && data.adsEnabled is bool
+        && data.adsenseClientId is string && data.adsenseClientId.size() <= 64
+        && data.adsenseSlotId is string && data.adsenseSlotId.size() <= 64
+        && data.proMonthlyPrice is int && data.proMonthlyPrice >= 1 && data.proMonthlyPrice <= 10000
+        && data.agencyMonthlyPrice is int && data.agencyMonthlyPrice >= 1 && data.agencyMonthlyPrice <= 50000
+        && data.freeMonthlyScanLimit is int && data.freeMonthlyScanLimit >= 1 && data.freeMonthlyScanLimit <= 1000
+        && data.freeMonthlyExportLimit is int && data.freeMonthlyExportLimit >= 1 && data.freeMonthlyExportLimit <= 1000
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidUpgradeRequest(data) {
+      return data.keys().hasAll(['userId', 'userEmail', 'requestedPlan', 'status', 'note', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['userId', 'userEmail', 'requestedPlan', 'status', 'note', 'createdAt', 'updatedAt'])
+        && isValidId(data.userId)
+        && data.userEmail is string && data.userEmail.size() >= 3 && data.userEmail.size() <= 160
+        && data.requestedPlan in ['pro', 'agency']
+        && data.status in ['pending', 'approved', 'rejected']
+        && data.note is string && data.note.size() <= 300
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidUsageLog(data) {
+      return data.keys().hasAll(['userId', 'actionType', 'streamTitle', 'platform', 'createdAt'])
+        && data.keys().hasOnly(['userId', 'actionType', 'streamTitle', 'platform', 'createdAt'])
+        && isValidId(data.userId)
+        && data.actionType in ['highlight_scan', 'hook_rewrite', 'short_export']
+        && data.streamTitle is string && data.streamTitle.size() >= 1 && data.streamTitle.size() <= 180
+        && data.platform in ['twitch', 'youtube', 'local']
+        && data.createdAt is timestamp;
+    }
+
+    // Users collection: PII & quota isolation
+    match /users/{userId} {
+      allow get: if isVerifiedUser() && isValidId(userId) && (userId == request.auth.uid || isAdmin());
+      allow list: if isVerifiedUser() && (resource.data.uid == request.auth.uid || isBootstrappedAdmin());
+
+      allow create: if isVerifiedUser()
+        && isValidId(userId)
+        && isValidUserProfile(incoming())
+        && incoming().uid == userId
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin() || (
+            userId == request.auth.uid
+            && incoming().email == request.auth.token.email
+            && incoming().planTier == 'free'
+            && incoming().scansUsed == 0
+            && incoming().exportsUsed == 0
+            && incoming().monthlyScanLimit <= 25
+            && incoming().monthlyExportLimit <= 25
+          )
+        );
+
+      allow update: if isVerifiedUser()
+        && isValidId(userId)
+        && isValidUserProfile(incoming())
+        && incoming().uid == existing().uid
+        && incoming().email == existing().email
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin() || (
+            userId == request.auth.uid
+            && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'scansUsed', 'exportsUsed', 'updatedAt'])
+            && incoming().planTier == existing().planTier
+            && incoming().monthlyScanLimit == existing().monthlyScanLimit
+            && incoming().monthlyExportLimit == existing().monthlyExportLimit
+            && incoming().scansUsed >= existing().scansUsed
+            && incoming().scansUsed <= existing().scansUsed + 1
+            && incoming().scansUsed <= existing().monthlyScanLimit
+            && incoming().exportsUsed >= existing().exportsUsed
+            && incoming().exportsUsed <= existing().exportsUsed + 1
+            && incoming().exportsUsed <= existing().monthlyExportLimit
+          )
+        );
+
+      allow delete: if isAdmin() && isValidId(userId);
+    }
+
+    // Admins registry
+    match /admins/{adminUid} {
+      allow get: if isVerifiedUser() && isValidId(adminUid) && (adminUid == request.auth.uid || isAdmin());
+      allow list: if isBootstrappedAdmin();
+      allow create, update: if isAdmin()
+        && isValidId(adminUid)
+        && isValidAdminRecord(incoming())
+        && incoming().uid == adminUid
+        && incoming().grantedAt == request.time;
+      allow delete: if isAdmin() && isValidId(adminUid) && adminUid != request.auth.uid;
+    }
+
+    // Publicly readable monetization/pricing configuration, Admin-only write
+    match /appConfig/{configId} {
+      allow get: if isValidId(configId);
+      allow list: if false;
+      allow create, update: if isAdmin()
+        && isValidId(configId)
+        && isValidMonetizationConfig(incoming())
+        && incoming().updatedAt == request.time;
+      allow delete: if isAdmin() && isValidId(configId);
+    }
+
+    // Plan upgrade requests
+    match /upgradeRequests/{requestId} {
+      allow get: if isVerifiedUser() && isValidId(requestId) && (existing().userId == request.auth.uid || isAdmin());
+      allow list: if isVerifiedUser() && (resource.data.userId == request.auth.uid || isBootstrappedAdmin());
+
+      allow create: if isVerifiedUser()
+        && isValidId(requestId)
+        && isValidUpgradeRequest(incoming())
+        && incoming().userId == request.auth.uid
+        && incoming().userEmail == request.auth.token.email
+        && incoming().status == 'pending'
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+
+      allow update: if isAdmin()
+        && isValidId(requestId)
+        && isValidUpgradeRequest(incoming())
+        && existing().status == 'pending'
+        && incoming().userId == existing().userId
+        && incoming().userEmail == existing().userEmail
+        && incoming().requestedPlan == existing().requestedPlan
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt']);
+
+      allow delete: if isAdmin() && isValidId(requestId);
+    }
+
+    // Usage audit logs
+    match /usageLogs/{logId} {
+      allow get: if isVerifiedUser() && isValidId(logId) && (existing().userId == request.auth.uid || isAdmin());
+      allow list: if isVerifiedUser() && (resource.data.userId == request.auth.uid || isBootstrappedAdmin());
+
+      allow create: if isVerifiedUser()
+        && isValidId(logId)
+        && isValidUsageLog(incoming())
+        && incoming().userId == request.auth.uid
+        && incoming().createdAt == request.time;
+
+      allow update, delete: if isAdmin() && isValidId(logId);
+    }
+  }
+}
