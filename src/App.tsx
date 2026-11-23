@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AlertCircle, CheckCircle2, Link2, Loader2, Scissors, Sparkles, X } from "lucide-react";
 import { ExportQueueView } from "./components/ExportQueueView";
 import { HighlightsQueueView } from "./components/HighlightsQueueView";
+import { OfflineIndicator } from "./components/OfflineIndicator";
 import { Sidebar, WorkspaceTab } from "./components/Sidebar";
 import { SourceMonitor } from "./components/SourceMonitor";
 import { StreamIngestModal } from "./components/StreamIngestModal";
@@ -757,6 +758,8 @@ export default function App() {
         onClose={() => setIngestOpen(false)}
         onAddStream={handleAddStreamFromModal}
       />
+
+      <OfflineIndicator />
     </div>
   );
 }

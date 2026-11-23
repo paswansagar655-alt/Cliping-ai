@@ -1,6 +1,7 @@
 import { Film, FolderPlus, Layers, Scissors, Sparkles } from "lucide-react";
 import { StreamSource } from "../types/clip";
 import { formatTimecode } from "../utils/videoEngine";
+import { PWAInstallButton } from "./PWAInstallButton";
 
 export type WorkspaceTab = "studio" | "highlights" | "exports";
 
@@ -28,10 +29,13 @@ export function Sidebar({
   return (
     <aside className="w-full lg:w-[252px] shrink-0 bg-[#11141A] border-b lg:border-b-0 lg:border-r border-white/[0.08] flex flex-col justify-between">
       <div>
-        <div className="h-14 px-5 flex items-center border-b border-white/[0.08]">
+        <div className="h-14 px-5 flex items-center justify-between gap-3 border-b border-white/[0.08]">
           <span className="font-display text-lg font-bold tracking-tight text-[#F3F5F8] whitespace-nowrap shrink-0">
             ClipDeck
           </span>
+          <div className="lg:hidden">
+            <PWAInstallButton compact />
+          </div>
         </div>
 
         <nav className="p-3 space-y-1" aria-label="Workspace navigation">
@@ -132,7 +136,8 @@ export function Sidebar({
         </div>
       </div>
 
-      <div className="hidden lg:block p-4 border-t border-white/[0.08]">
+      <div className="hidden lg:block p-4 border-t border-white/[0.08] space-y-2.5">
+        <PWAInstallButton />
         <button
           type="button"
           onClick={onOpenIngest}
